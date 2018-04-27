@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/navigation_hotsale"
+        android:icon="@drawable/hotsale"
+        android:title="@string/title_hotsale" />
+
+    <item
+        android:id="@+id/navigation_clothes"
+        android:icon="@drawable/clothes"
+        android:title="@string/title_clothes" />
+
+    <item
+        android:id="@+id/navigation_shoes"
+        android:icon="@drawable/shoe"
+        android:title="@string/title_shoes" />
+    <item
+        android:id="@+id/navigation_cosmetics"
+        android:icon="@drawable/mypham"
+        android:title="@string/title_cosmetics" />
+
+</menu>

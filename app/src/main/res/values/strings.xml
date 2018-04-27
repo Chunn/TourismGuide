@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Tourism Guide</string>
+    <string name="title_hotsale">Nhà hàng</string>
+    <string name="title_clothes">Quần áo</string>
+    <string name="title_shoes">Giày dép</string>
+    <string name="title_cosmetics">Mỹ phẩm</string>
+</resources>
