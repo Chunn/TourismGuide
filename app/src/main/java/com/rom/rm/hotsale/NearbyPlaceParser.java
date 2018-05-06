@@ -8,15 +8,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class DataParser  {
+public class NearbyPlaceParser {
     //HashMap là 1 kiểu đối tượng lưu giá trị theo cặp key, value (key là duy nhất)
     private HashMap <String,String> getPlace(JSONObject googlePlacesJson){
         HashMap <String,String> googlePlacesMap=new HashMap<>();
         String placeName="-NA-";
-        String vicinity="-NA-"; //Lân cận
+        String vicinity="-NA-";
         String latitude="";    //Vĩ độ
         String longitude="";   //Kinh độ
         String reference="";
+        String mainType = "";
+        String placeId = "";
         try {
             if (!googlePlacesJson.isNull("name"))
             {
@@ -29,6 +31,8 @@ public class DataParser  {
             latitude=googlePlacesJson.getJSONObject("geometry").getJSONObject("location").getString("lat");
             longitude=googlePlacesJson.getJSONObject("geometry").getJSONObject("location").getString("lng");
             reference=googlePlacesJson.getString("reference");
+            mainType = googlePlacesJson.getJSONArray("types").getString(0);
+            placeId = googlePlacesJson.getString("place_id");
 
             //Đưa key và value vào hashMap
             googlePlacesMap.put("place_name", placeName);
@@ -36,6 +40,8 @@ public class DataParser  {
             googlePlacesMap.put("lat", latitude);
             googlePlacesMap.put("lng", longitude);
             googlePlacesMap.put("reference", reference);
+            googlePlacesMap.put("main_type", mainType);
+            googlePlacesMap.put("place_id", placeId);
 
 
         } catch (JSONException e) {

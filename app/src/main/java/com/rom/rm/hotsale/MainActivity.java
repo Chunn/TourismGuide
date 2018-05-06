@@ -2,11 +2,14 @@ package com.rom.rm.hotsale;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
+import android.app.SearchManager;
+import android.support.v4.content.CursorLoader;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.location.Address;
+import android.database.Cursor;
 import android.location.Criteria;
-import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Build;
@@ -16,12 +19,14 @@ import android.support.annotation.Nullable;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.app.LoaderManager;
+import android.support.v4.content.Loader;
 import android.support.v7.app.AlertDialog;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -30,6 +35,11 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.places.Place;
+import com.google.android.gms.location.places.PlaceDetectionClient;
+import com.google.android.gms.location.places.PlaceLikelihood;
+import com.google.android.gms.location.places.PlaceLikelihoodBufferResponse;
+import com.google.android.gms.location.places.Places;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -39,26 +49,29 @@ import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
 
-import java.io.IOException;
-import java.util.List;
+import org.json.JSONException;
+import org.json.JSONObject;
 
-public class MainActivity extends FragmentActivity implements OnMapReadyCallback,
-        GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener,LocationListener{
+
+public class MainActivity extends AppCompatActivity implements OnMapReadyCallback,
+        GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener,LocationListener,
+        LoaderManager.LoaderCallbacks<Cursor>{
 
     private GoogleMap mMap;
     private static final String MYTAG = "MYTAG";
     private static final int REQUEST_ID_ACCESS_COURSE_FINE_LOCATION=100;
     private BottomNavigationView navigation;
-    private Button btn_search;
-    private EditText edt_place;
     private int PROXIMITY_RADIUS = 1000;
     private static double latitude, longitude;
     private GoogleApiClient googleApiClient;
-    private Location location;
+    private static Location location;
     private LocationRequest locationRequest;
     private Marker marker;
     private int DEFAULT_ZOOM=15;
+    private Toolbar toolbar;
 
     public static double getLatitude() {
         return latitude;
@@ -76,49 +89,18 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
         MainActivity.longitude = longitude;
     }
 
+
+    @TargetApi(21)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         navigation = findViewById(R.id.navigation);
         navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
-        btn_search = findViewById(R.id.btn_search);
-        edt_place = findViewById(R.id.edt_location);
+        toolbar=findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
 
-        btn_search.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mMap.clear();
-                String address = edt_place.getText().toString();
-                List<Address> addressList = null;
-                MarkerOptions markerOptions = new MarkerOptions();
-
-                if (!address.equals("")) {
-                    Geocoder geocoder = new Geocoder(MainActivity.this);
-                    try {
-                        addressList = geocoder.getFromLocationName(address, 5);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    for (int i = 0; i < addressList.size(); i++) {
-                        Address mAddress = addressList.get(i);
-                        latitude=mAddress.getLatitude();
-                        longitude=mAddress.getLongitude();
-                        LatLng latLng = new LatLng(latitude, longitude);
-                        markerOptions.position(latLng);
-                        mMap.addMarker(markerOptions);
-                        CameraPosition cameraPosition = new CameraPosition.Builder()
-                                .target(latLng)             // Sets the center of the map to location user
-                                .zoom(15)                   // Sets the zoom
-                                .bearing(90)                // Sets the orientation of the camera to east
-                                .tilt(40)                   // Sets the tilt of the camera to 30 degrees
-                                .build();                   // Creates a CameraPosition from the builder
-                        mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
-                    }
-                }
-            }
-        });
-
+        handleIntent(getIntent());
         if (checkGooglePlayServices()) {
             Log.d(MYTAG,"GooglePlay Service available");
             buildGoogleApiClient();
@@ -144,6 +126,24 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
             @Override
             public void onMapLoaded() {
                 askPermissionsAndShowMyLocation();
+            }
+        });
+        mMap.setInfoWindowAdapter(new CustomInfoWindowAdapter(MainActivity.this));
+        mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
+            @Override
+            public void onInfoWindowClick(Marker marker) {
+                JSONObject jsonObject = null;
+                try {
+                    jsonObject = new JSONObject(marker.getSnippet());
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                if (jsonObject != null && jsonObject.has("place_id")) {
+
+                    String url = getDetailsUrl(jsonObject.optString("place_id"));
+                    GetDetailsOfPlaces getDetailsOfPlaces = new GetDetailsOfPlaces(MainActivity.this);
+                    getDetailsOfPlaces.execute(url);
+                }
             }
         });
     }
@@ -197,6 +197,7 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
             mMap.setOnMyLocationButtonClickListener(new GoogleMap.OnMyLocationButtonClickListener() {
                 @Override
                 public boolean onMyLocationButtonClick() {
+                    mMap.clear();
                     location=mMap.getMyLocation();
                     latitude=location.getLatitude();
                     longitude=location.getLongitude();
@@ -227,7 +228,6 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
         this.showMyLocation();
     }
     protected synchronized void buildGoogleApiClient() {
-
         googleApiClient = new GoogleApiClient.Builder(this)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
@@ -309,7 +309,6 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
             Log.i(MYTAG, "Location not found");
         }
     }
-
     private BottomNavigationView.OnNavigationItemSelectedListener mOnNavigationItemSelectedListener
             = new BottomNavigationView.OnNavigationItemSelectedListener() {
 
@@ -317,31 +316,32 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
         public boolean onNavigationItemSelected(@NonNull MenuItem item) {
             String url;
             Object[] dataTransfer;
-            switch (item.getItemId()) {
-                case R.id.navigation_hotsale:
-                    mMap.clear();
-                    String restaurant = "restaurant";
-                    url = getUrl(latitude, longitude, restaurant);
+            String[] typeList;
+
+            if (item.getItemId() == R.id.navigation_scenic
+                    || item.getItemId() == R.id.navigation_eating
+                    || item.getItemId() == R.id.navigation_emergency
+                    || item.getItemId() == R.id.navigation_rest) {
+                mMap.clear();
+                if (item.getItemId() == R.id.navigation_scenic) {
+                    typeList = new String[]{"amusement_park", "zoo", "campground", "museum"};
+                } else if (item.getItemId() == R.id.navigation_eating) {
+                    typeList = new String[]{"bakery", "restaurant", "cafe"};
+                } else if (item.getItemId() == R.id.navigation_emergency) {
+                    typeList = new String[]{"police", "pharmacy", "hospital"};
+                } else {
+                    typeList = new String[]{"hotel", "lodging"};
+                }
+
+                for (int index = 0; index < typeList.length; index++) {
+                    url = getUrl(latitude, longitude, typeList[index]);
                     dataTransfer = new Object[2];
                     dataTransfer[0] = mMap;
                     dataTransfer[1] = url;
                     GetNearbyPlacesData getNearbyPlacesData = new GetNearbyPlacesData();
                     getNearbyPlacesData.execute(dataTransfer);
-                    Toast.makeText(MainActivity.this, "Show restaurant", Toast.LENGTH_SHORT).show();
-
-                    return true;
-                case R.id.navigation_clothes:
-                    mMap.clear();
-
-                    return true;
-                case R.id.navigation_shoes:
-                    mMap.clear();
-
-                    return true;
-                case R.id.navigation_cosmetics:
-                    mMap.clear();
-
-                    return true;
+                }
+                return true;
             }
             return false;
         }
@@ -357,7 +357,13 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
         Log.d("Url",googlePlaceUrl.toString());
         return googlePlaceUrl.toString();
     }
-
+     private String getDetailsUrl(String placeId) {
+        StringBuilder googlePlaceUrl = new StringBuilder("https://maps.googleapis.com/maps/api/place/details/json?");
+        googlePlaceUrl.append("placeid=" + placeId);
+        googlePlaceUrl.append("&key=" + "AIzaSyBpTLBynSv6JC0kBIRRNOmdsVNdsOsD_Do");
+        Log.d("DetailsURL", googlePlaceUrl.toString());
+        return googlePlaceUrl.toString();
+     }
 
 
     @SuppressLint("RestrictedApi")
@@ -413,5 +419,106 @@ public class MainActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
 
     }
+//Search with recommend
+    private void handleIntent(Intent intent){
+        if (intent.getAction().equals(Intent.ACTION_SEARCH)){
+            doSearch(intent.getStringExtra(SearchManager.QUERY));
+        }
+        else if (intent.getAction().equals(Intent.ACTION_VIEW)){
+            getPlace(intent.getStringExtra(SearchManager.EXTRA_DATA_KEY));
+        }
+    }
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
+    }
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu
+        getMenuInflater().inflate(R.menu.action_search, menu);
+        return true;
+    }
 
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch(item.getItemId()){
+            case R.id.action_search:
+                onSearchRequested();
+                break;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+    private void doSearch(String query){
+        Bundle data = new Bundle();
+        data.putString("query", query);
+        getSupportLoaderManager().restartLoader(0, data, this);
+    }
+
+    private void getPlace(String query){
+        Bundle data = new Bundle();
+        data.putString("query", query); //gửi query (1 cặp key and value)
+        getSupportLoaderManager().restartLoader(1, data, this);
+    }
+
+    @NonNull
+    @Override
+    public Loader<Cursor> onCreateLoader(int id, @Nullable Bundle query) {
+        //Tải dữ liệu k đồng bộ từ 1 content provider (lớp con của Async Task Loader)
+        CursorLoader cursorLoader=null;
+        if (id==0){
+            //URI của nội dung cần truy xuất, SELECT, WHERE,ORDERBY
+            cursorLoader=new CursorLoader(getBaseContext(),PlaceProvider.SEARCH_URI,null,
+                    null,new String[]{query.getString("query")},null);
+        }
+        else if (id==1){
+            cursorLoader=new CursorLoader(getBaseContext(),PlaceProvider.DETAILS_URI,null,
+                    null,new String[]{query.getString("query")},null);
+        }
+        return cursorLoader;
+    }
+
+    @Override
+    public void onLoadFinished(@NonNull Loader<Cursor> loader, Cursor cursor) {
+        showLocation(cursor);
+
+    }
+
+    @Override
+    public void onLoaderReset(@NonNull Loader<Cursor> loader) {
+
+    }
+    private void showLocation(Cursor cursor){
+        MarkerOptions markerOptions=new MarkerOptions();
+        LatLng latLng=null;
+        mMap.clear();
+        while (cursor.moveToNext()){
+            latitude=Double.parseDouble(cursor.getString(1));
+            longitude=Double.parseDouble(cursor.getString(2));
+            latLng=new LatLng(latitude,longitude);
+            JSONObject jsonObject = new JSONObject();
+            try {
+                jsonObject.put("vicinity", "");
+                jsonObject.put("place_id", "");
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            markerOptions.snippet(jsonObject.toString());
+            markerOptions.position(latLng);
+            markerOptions.title(cursor.getString(0));
+            mMap.addMarker(markerOptions);
+        }
+        if(latLng!=null){
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, DEFAULT_ZOOM));
+
+            CameraPosition cameraPosition = new CameraPosition.Builder()
+                    .target(latLng)             // Sets the center of the map to location user
+                    .zoom(DEFAULT_ZOOM)                   // Sets the zoom
+                    .bearing(90)                // Sets the orientation of the camera to east
+                    .tilt(40)                   // Sets the tilt of the camera to 30 degrees
+                    .build();                   // Creates a CameraPosition from the builder
+            mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
+        }
+    }
 }

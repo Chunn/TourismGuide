@@ -2,22 +2,22 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
-        android:id="@+id/navigation_hotsale"
+        android:id="@+id/navigation_eating"
         android:icon="@drawable/hotsale"
-        android:title="@string/title_hotsale" />
+        android:title="@string/title_eating" />
 
     <item
-        android:id="@+id/navigation_clothes"
+        android:id="@+id/navigation_scenic"
         android:icon="@drawable/clothes"
-        android:title="@string/title_clothes" />
+        android:title="@string/title_scenic" />
 
     <item
-        android:id="@+id/navigation_shoes"
-        android:icon="@drawable/shoe"
-        android:title="@string/title_shoes" />
-    <item
-        android:id="@+id/navigation_cosmetics"
+        android:id="@+id/navigation_rest"
         android:icon="@drawable/mypham"
-        android:title="@string/title_cosmetics" />
+        android:title="@string/title_rest" />
 
+    <item
+        android:id="@+id/navigation_emergency"
+        android:icon="@drawable/shoe"
+        android:title="@string/title_emergency" />
 </menu>

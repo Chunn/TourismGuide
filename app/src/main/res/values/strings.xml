@@ -4,4 +4,12 @@
     <string name="title_clothes">Quần áo</string>
     <string name="title_shoes">Giày dép</string>
     <string name="title_cosmetics">Mỹ phẩm</string>
+    <string name="title_hotel">Khách sạn</string>
+    <string name="title_scenic">Địa điểm du lịch</string>
+    <string name="title_shopping">Mua sắm</string>
+    <string name="title_beauty">Làm đẹp</string>
+    <string name="title_eating">Ăn uống</string>
+    <string name="title_emergency">Y tế / Cảnh sát</string>
+    <string name="title_rest">Khách sạn</string>
+
 </resources>
